@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Textentwurf</title>
+  <style>
+    :root {
+      --bg: #f6f5f2;
+      --surface: #ffffff;
+      --text: #1d1d1f;
+      --muted: #6e6e73;
+      --border: #e3e1dc;
+      --border-focus: #2f5bea;
+      --accent: #2f5bea;
+      --accent-text: #ffffff;
+      --ok: #1f8a4c;
+      --warn: #b7791f;
+      --over: #c53030;
+      --track: #ecebe7;
+      --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
+      --radius: 14px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #141416;
+        --surface: #1d1d20;
+        --text: #f2f2f3;
+        --muted: #9a9aa1;
+        --border: #2e2e33;
+        --border-focus: #6d8cff;
+        --accent: #6d8cff;
+        --accent-text: #0e0e10;
+        --ok: #4cc283;
+        --warn: #e0a84a;
+        --over: #f07171;
+        --track: #2a2a2f;
+        --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.25);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .layout {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 48px 24px 120px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 260px;
+      gap: 40px;
+      align-items: start;
+    }
+
+    header { grid-column: 1 / -1; }
+    h1 {
+      margin: 0 0 4px;
+      font-size: 1.75rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    .subtitle { margin: 0; color: var(--muted); }
+
+    /* Textfelder */
+    .sections { display: flex; flex-direction: column; gap: 20px; }
+    .section { display: flex; flex-direction: column; gap: 8px; }
+    .section label {
+      font-size: .8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+    }
+    textarea {
+      width: 100%;
+      min-height: 140px;
+      resize: vertical;
+      padding: 16px 18px;
+      font: inherit;
+      color: inherit;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      transition: border-color .15s, box-shadow .15s;
+      overflow: hidden;
+    }
+    textarea:hover { border-color: color-mix(in srgb, var(--border) 60%, var(--muted)); }
+    textarea:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--border-focus) 18%, transparent);
+    }
+
+    /* Seitenleiste */
+    aside {
+      position: sticky;
+      top: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px;
+    }
+    .counter-label {
+      font-size: .8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin: 0 0 6px;
+    }
+    .counter {
+      font-size: 2.25rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+    .counter .max { color: var(--muted); font-weight: 500; }
+    .counter.ok .current { color: var(--ok); }
+    .counter.over .current { color: var(--over); }
+
+    .bar {
+      position: relative;
+      height: 6px;
+      margin: 14px 0 10px;
+      background: var(--track);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      width: 0;
+      background: var(--muted);
+      border-radius: 99px;
+      transition: width .2s ease, background-color .2s;
+    }
+    .bar-fill.ok { background: var(--ok); }
+    .bar-fill.over { background: var(--over); }
+    .bar-min {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 2px;
+      background: var(--text);
+      opacity: .35;
+    }
+    .hint { margin: 0; font-size: .875rem; color: var(--muted); }
+    .status { margin: 6px 0 0; font-size: .875rem; font-weight: 500; }
+    .status.ok { color: var(--ok); }
+    .status.under { color: var(--warn); }
+    .status.over { color: var(--over); }
+
+    .actions { display: flex; flex-direction: column; gap: 10px; }
+    button {
+      font: inherit;
+      font-weight: 550;
+      font-size: .95rem;
+      padding: 11px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background-color .15s, border-color .15s, transform .05s;
+    }
+    button:hover { border-color: color-mix(in srgb, var(--border) 50%, var(--muted)); }
+    button:active { transform: translateY(1px); }
+    button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-text);
+    }
+    button.primary:hover { background: color-mix(in srgb, var(--accent) 88%, #000); }
+    button svg { width: 18px; height: 18px; flex: none; }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 28px;
+      transform: translate(-50%, 20px);
+      background: var(--text);
+      color: var(--bg);
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-size: .9rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s, transform .2s;
+      z-index: 20;
+      max-width: calc(100% - 32px);
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    /* Schmale Bildschirme: Leiste unten fixieren */
+    @media (max-width: 860px) {
+      .layout {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 24px;
+        padding: 32px 16px 180px;
+      }
+      aside {
+        position: fixed;
+        top: auto;
+        left: 0; right: 0; bottom: 0;
+        flex-direction: row;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+        background: color-mix(in srgb, var(--surface) 92%, transparent);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-top: 1px solid var(--border);
+        z-index: 10;
+      }
+      aside .card {
+        flex: 1;
+        padding: 0;
+        border: 0;
+        box-shadow: none;
+        background: transparent;
+        min-width: 0;
+      }
+      .counter-label { display: none; }
+      .counter { font-size: 1.5rem; }
+      .bar { margin: 6px 0 4px; }
+      .status { display: none; }
+      .hint { font-size: .8rem; }
+      .actions { flex-direction: row; }
+      button { padding: 10px 12px; }
+      .toast { bottom: 100px; }
+    }
+    @media (max-width: 420px) {
+      button .btn-text { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <header>
+      <h1>Textentwurf</h1>
+      <p class="subtitle">Schreibe deinen Text in Abschnitten. Die Wortzahl wird automatisch gezählt.</p>
+    </header>
+
+    <main class="sections" id="sections"></main>
+
+    <aside>
+      <div class="card">
+        <p class="counter-label">Wörter</p>
+        <div class="counter" id="counter" aria-live="polite">
+          <span class="current" id="count">0</span><span class="max">/<span id="max">260</span></span>
+        </div>
+        <div class="bar" aria-hidden="true">
+          <div class="bar-fill" id="barFill"></div>
+          <div class="bar-min" id="barMin"></div>
+        </div>
+        <p class="hint">Minimum: <span id="min">230</span> Wörter</p>
+        <p class="status" id="status"></p>
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="saveBtn" type="button" title="Als Datei speichern">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+          <span class="btn-text">Speichern</span>
+        </button>
+        <button id="importBtn" type="button" title="Gespeicherte Datei laden">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9"/><path d="m7 14 5-5 5 5"/><path d="M5 3h14"/></svg>
+          <span class="btn-text">Importieren</span>
+        </button>
+        <input type="file" id="fileInput" accept=".json,application/json" hidden>
+      </div>
+    </aside>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    const MAX_WORDS = 260;
+    const MIN_WORDS = 230;
+    const SECTION_COUNT = 6;
+    const FILE_FORMAT = "textentwurf";
+
+    const sectionsEl = document.getElementById("sections");
+    const textareas = [];
+
+    for (let i = 0; i < SECTION_COUNT; i++) {
+      const wrap = document.createElement("div");
+      wrap.className = "section";
+      const id = "section-" + (i + 1);
+
+      let title = "";
+      if (i === 0) title = "Einleitung";
+      if (i === SECTION_COUNT - 1) title = "Schluss";
+
+      if (title) {
+        const label = document.createElement("label");
+        label.htmlFor = id;
+        label.textContent = title;
+        wrap.appendChild(label);
+      }
+
+      const ta = document.createElement("textarea");
+      ta.id = id;
+      ta.spellcheck = true;
+      ta.setAttribute("aria-label", title || "Abschnitt " + (i + 1));
+      ta.addEventListener("input", () => { autoResize(ta); update(); });
+      wrap.appendChild(ta);
+      sectionsEl.appendChild(wrap);
+      textareas.push(ta);
+    }
+
+    document.getElementById("max").textContent = MAX_WORDS;
+    document.getElementById("min").textContent = MIN_WORDS;
+    document.getElementById("barMin").style.left = (MIN_WORDS / MAX_WORDS * 100) + "%";
+
+    function autoResize(ta) {
+      ta.style.height = "auto";
+      ta.style.height = ta.scrollHeight + 2 + "px";
+    }
+
+    // Ein Wort = durch Leerzeichen getrennte Zeichenfolge mit mind. einem Buchstaben oder einer Ziffer
+    function countWords(text) {
+      return text.split(/\s+/).filter(w => /[\p{L}\p{N}]/u.test(w)).length;
+    }
+
+    let dirty = false;
+
+    function update() {
+      const total = textareas.reduce((sum, ta) => sum + countWords(ta.value), 0);
+      const state = total > MAX_WORDS ? "over" : total >= MIN_WORDS ? "ok" : "under";
+
+      document.getElementById("count").textContent = total;
+      document.getElementById("counter").className = "counter " + state;
+
+      const fill = document.getElementById("barFill");
+      fill.style.width = Math.min(total / MAX_WORDS, 1) * 100 + "%";
+      fill.className = "bar-fill " + state;
+
+      const status = document.getElementById("status");
+      status.className = "status " + state;
+      if (state === "over") status.textContent = (total - MAX_WORDS) + " Wörter zu viel";
+      else if (state === "ok") status.textContent = "Im Zielbereich";
+      else status.textContent = "Noch " + (MIN_WORDS - total) + " Wörter bis zum Minimum";
+
+      dirty = true;
+    }
+
+    let toastTimer;
+    function toast(msg) {
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove("show"), 2600);
+    }
+
+    // Speichern
+    document.getElementById("saveBtn").addEventListener("click", () => {
+      const data = {
+        format: FILE_FORMAT,
+        version: 1,
+        savedAt: new Date().toISOString(),
+        sections: textareas.map(ta => ta.value)
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const d = new Date();
+      const pad = n => String(n).padStart(2, "0");
+      const name = `textentwurf-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+
+      dirty = false;
+      toast("Gespeichert: " + name);
+    });
+
+    // Importieren
+    const fileInput = document.getElementById("fileInput");
+    document.getElementById("importBtn").addEventListener("click", () => fileInput.click());
+
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      fileInput.value = "";
+      if (!file) return;
+
+      let data;
+      try {
+        data = JSON.parse(await file.text());
+      } catch {
+        toast("Die Datei konnte nicht gelesen werden.");
+        return;
+      }
+      if (!data || data.format !== FILE_FORMAT || !Array.isArray(data.sections)) {
+        toast("Ungültige Datei – bitte eine gespeicherte Textentwurf-Datei wählen.");
+        return;
+      }
+
+      const hasContent = textareas.some(ta => ta.value.trim() !== "");
+      if (hasContent && !confirm("Der aktuelle Text wird durch den Inhalt der Datei ersetzt. Fortfahren?")) return;
+
+      textareas.forEach((ta, i) => {
+        ta.value = typeof data.sections[i] === "string" ? data.sections[i] : "";
+        autoResize(ta);
+      });
+      update();
+      dirty = false;
+      toast("Importiert: " + file.name);
+    });
+
+    // Warnung bei ungespeicherten Änderungen
+    window.addEventListener("beforeunload", e => {
+      if (dirty && textareas.some(ta => ta.value.trim() !== "")) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    });
+
+    // Strg+S zum Speichern
+    document.addEventListener("keydown", e => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        document.getElementById("saveBtn").click();
+      }
+    });
+
+    update();
+    dirty = false;
+  </script>
+</body>
+</html>
