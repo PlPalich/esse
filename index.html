@@ -69,6 +69,36 @@
     }
     .subtitle { margin: 0; color: var(--muted); }
 
+    /* Tabs */
+    .tabs {
+      display: inline-flex;
+      gap: 4px;
+      margin-top: 20px;
+      padding: 4px;
+      background: var(--track);
+      border-radius: 12px;
+      max-width: 100%;
+    }
+    .tab {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      padding: 8px 16px;
+      border-radius: 9px;
+      box-shadow: none;
+      flex-direction: column;
+      gap: 0;
+      line-height: 1.25;
+    }
+    .tab:hover { color: var(--text); }
+    .tab[aria-selected="true"] {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: var(--shadow);
+    }
+    .tab-range { font-size: .75rem; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .panel[hidden] { display: none; }
+
     /* Textfelder */
     .sections { display: flex; flex-direction: column; gap: 20px; }
     .section { display: flex; flex-direction: column; gap: 8px; }
@@ -259,21 +289,22 @@
     <header>
       <h1>Textentwurf</h1>
       <p class="subtitle">Schreibe deinen Text in Abschnitten. Die Wortzahl wird automatisch gezählt.</p>
+      <div class="tabs" role="tablist" id="tabs"></div>
     </header>
 
-    <main class="sections" id="sections"></main>
+    <main id="sections"></main>
 
     <aside>
       <div class="card">
         <p class="counter-label">Wörter</p>
         <div class="counter" id="counter" aria-live="polite">
-          <span class="current" id="count">0</span><span class="max">/<span id="max">260</span></span>
+          <span class="current" id="count">0</span><span class="max">/<span id="max"></span></span>
         </div>
         <div class="bar" aria-hidden="true">
           <div class="bar-fill" id="barFill"></div>
           <div class="bar-min" id="barMin"></div>
         </div>
-        <p class="hint">Minimum: <span id="min">230</span> Wörter</p>
+        <p class="hint">Minimum: <span id="min"></span> Wörter</p>
         <p class="status" id="status"></p>
       </div>
 
@@ -294,43 +325,97 @@
   <div class="toast" id="toast" role="status"></div>
 
   <script>
-    const MAX_WORDS = 260;
-    const MIN_WORDS = 230;
-    const SECTION_COUNT = 6;
     const FILE_FORMAT = "textentwurf";
+    const MODES = {
+      text: { name: "Text", sections: 6, min: 230, max: 260, filePrefix: "textentwurf" },
+      mail: { name: "E-Mail", sections: 3, min: 120, max: 200, filePrefix: "mail-entwurf" }
+    };
 
     const sectionsEl = document.getElementById("sections");
-    const textareas = [];
+    const tabsEl = document.getElementById("tabs");
+    const panels = {};
+    const tabs = {};
+    const dirty = { text: false, mail: false };
+    let mode;
 
-    for (let i = 0; i < SECTION_COUNT; i++) {
-      const wrap = document.createElement("div");
-      wrap.className = "section";
-      const id = "section-" + (i + 1);
+    for (const [key, cfg] of Object.entries(MODES)) {
+      // Tab
+      const tab = document.createElement("button");
+      tab.type = "button";
+      tab.className = "tab";
+      tab.id = "tab-" + key;
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-controls", "panel-" + key);
+      tab.innerHTML = `<span>${cfg.name}</span><span class="tab-range">${cfg.min}–${cfg.max} Wörter</span>`;
+      tab.addEventListener("click", () => setMode(key));
+      tabsEl.appendChild(tab);
+      tabs[key] = tab;
 
-      let title = "";
-      if (i === 0) title = "Einleitung";
-      if (i === SECTION_COUNT - 1) title = "Schluss";
+      // Panel mit Textfeldern
+      const panel = document.createElement("div");
+      panel.className = "panel sections";
+      panel.id = "panel-" + key;
+      panel.setAttribute("role", "tabpanel");
+      panel.setAttribute("aria-labelledby", tab.id);
+      const textareas = [];
 
-      if (title) {
-        const label = document.createElement("label");
-        label.htmlFor = id;
-        label.textContent = title;
-        wrap.appendChild(label);
+      for (let i = 0; i < cfg.sections; i++) {
+        const wrap = document.createElement("div");
+        wrap.className = "section";
+        const id = key + "-section-" + (i + 1);
+
+        let title = "";
+        if (i === 0) title = "Einleitung";
+        if (i === cfg.sections - 1) title = "Schluss";
+
+        if (title) {
+          const label = document.createElement("label");
+          label.htmlFor = id;
+          label.textContent = title;
+          wrap.appendChild(label);
+        }
+
+        const ta = document.createElement("textarea");
+        ta.id = id;
+        ta.spellcheck = true;
+        ta.setAttribute("aria-label", title || "Abschnitt " + (i + 1));
+        ta.addEventListener("input", () => { autoResize(ta); dirty[key] = true; update(); });
+        wrap.appendChild(ta);
+        panel.appendChild(wrap);
+        textareas.push(ta);
       }
 
-      const ta = document.createElement("textarea");
-      ta.id = id;
-      ta.spellcheck = true;
-      ta.setAttribute("aria-label", title || "Abschnitt " + (i + 1));
-      ta.addEventListener("input", () => { autoResize(ta); update(); });
-      wrap.appendChild(ta);
-      sectionsEl.appendChild(wrap);
-      textareas.push(ta);
+      sectionsEl.appendChild(panel);
+      panels[key] = { el: panel, textareas };
     }
 
-    document.getElementById("max").textContent = MAX_WORDS;
-    document.getElementById("min").textContent = MIN_WORDS;
-    document.getElementById("barMin").style.left = (MIN_WORDS / MAX_WORDS * 100) + "%";
+    // Pfeiltasten in der Tab-Leiste
+    tabsEl.addEventListener("keydown", e => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      const keys = Object.keys(MODES);
+      const next = keys[(keys.indexOf(mode) + (e.key === "ArrowRight" ? 1 : keys.length - 1)) % keys.length];
+      setMode(next);
+      tabs[next].focus();
+    });
+
+    const current = () => panels[mode].textareas;
+
+    function setMode(key) {
+      mode = key;
+      const cfg = MODES[key];
+      for (const k of Object.keys(MODES)) {
+        const active = k === key;
+        tabs[k].setAttribute("aria-selected", active);
+        tabs[k].tabIndex = active ? 0 : -1;
+        panels[k].el.hidden = !active;
+      }
+      document.getElementById("max").textContent = cfg.max;
+      document.getElementById("min").textContent = cfg.min;
+      document.getElementById("barMin").style.left = (cfg.min / cfg.max * 100) + "%";
+      current().forEach(autoResize);
+      try { localStorage.setItem("textentwurf-mode", key); } catch {}
+      update();
+    }
 
     function autoResize(ta) {
       ta.style.height = "auto";
@@ -342,10 +427,9 @@
       return text.split(/\s+/).filter(w => /[\p{L}\p{N}]/u.test(w)).length;
     }
 
-    let dirty = false;
-
     function update() {
-      const total = textareas.reduce((sum, ta) => sum + countWords(ta.value), 0);
+      const { min: MIN_WORDS, max: MAX_WORDS } = MODES[mode];
+      const total = current().reduce((sum, ta) => sum + countWords(ta.value), 0);
       const state = total > MAX_WORDS ? "over" : total >= MIN_WORDS ? "ok" : "under";
 
       document.getElementById("count").textContent = total;
@@ -360,8 +444,6 @@
       if (state === "over") status.textContent = (total - MAX_WORDS) + " Wörter zu viel";
       else if (state === "ok") status.textContent = "Im Zielbereich";
       else status.textContent = "Noch " + (MIN_WORDS - total) + " Wörter bis zum Minimum";
-
-      dirty = true;
     }
 
     let toastTimer;
@@ -377,14 +459,15 @@
     document.getElementById("saveBtn").addEventListener("click", () => {
       const data = {
         format: FILE_FORMAT,
-        version: 1,
+        version: 2,
+        mode,
         savedAt: new Date().toISOString(),
-        sections: textareas.map(ta => ta.value)
+        sections: current().map(ta => ta.value)
       };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const d = new Date();
       const pad = n => String(n).padStart(2, "0");
-      const name = `textentwurf-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+      const name = `${MODES[mode].filePrefix}-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
 
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -394,7 +477,7 @@
       a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 
-      dirty = false;
+      dirty[mode] = false;
       toast("Gespeichert: " + name);
     });
 
@@ -419,21 +502,26 @@
         return;
       }
 
-      const hasContent = textareas.some(ta => ta.value.trim() !== "");
-      if (hasContent && !confirm("Der aktuelle Text wird durch den Inhalt der Datei ersetzt. Fortfahren?")) return;
+      // Ältere Dateien ohne "mode": anhand der Abschnittszahl erkennen
+      const target = MODES[data.mode] ? data.mode : (data.sections.length <= MODES.mail.sections ? "mail" : "text");
+      const tas = panels[target].textareas;
 
-      textareas.forEach((ta, i) => {
+      const hasContent = tas.some(ta => ta.value.trim() !== "");
+      const where = target !== mode ? " im Modus „" + MODES[target].name + "“" : "";
+      if (hasContent && !confirm("Der aktuelle Text" + where + " wird durch den Inhalt der Datei ersetzt. Fortfahren?")) return;
+
+      tas.forEach((ta, i) => {
         ta.value = typeof data.sections[i] === "string" ? data.sections[i] : "";
-        autoResize(ta);
       });
-      update();
-      dirty = false;
+      dirty[target] = false;
+      setMode(target);
       toast("Importiert: " + file.name);
     });
 
     // Warnung bei ungespeicherten Änderungen
     window.addEventListener("beforeunload", e => {
-      if (dirty && textareas.some(ta => ta.value.trim() !== "")) {
+      const unsaved = Object.keys(MODES).some(k => dirty[k] && panels[k].textareas.some(ta => ta.value.trim() !== ""));
+      if (unsaved) {
         e.preventDefault();
         e.returnValue = "";
       }
@@ -447,8 +535,9 @@
       }
     });
 
-    update();
-    dirty = false;
+    let savedMode = null;
+    try { savedMode = localStorage.getItem("textentwurf-mode"); } catch {}
+    setMode(MODES[savedMode] ? savedMode : "text");
   </script>
 </body>
 </html>
